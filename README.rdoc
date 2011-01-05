@@ -2,52 +2,51 @@
 
 To receive and send ethernet frames using ruby.
 
-* Datalink::Socket class
-* Ethernet::Socket class < Datalink::Socket
-* Ethernet::Frame class
-* Arp class
+* A Socket class
+* A Frame class
+* A Arp class
 
 == Arp
 
-> Arp.methods false
+ > Arp.methods false
  => [:new_request, :new_reply]
 
-> Arp.new_request :hw_src=> '00:50:56:c0:00:01', 
+ > Arp.new_request :hw_src=> '00:50:56:c0:00:01', 
                   :proto_src=> '192.168.1.10', 
                   :proto_tgt=> '192.168.1.13'
  => ARP, Request who-has 192.168.1.13 tell 192.168.1.10 
 
 == Frame
 
+ > s = Ethernet::Socket.new 'en1'
  > data, _ = s.recv
- => 
  > frame = Ethernet::Frame.new data
- => #<Ethernet::Frame:0x00000100c94b08 ... >
  > frame.src
- => 00:24:b2:51:a8:8e 
+  => 00:24:b2:51:a8:8e 
  > frame.dst
- => 00:1f:5b:ce:bd:6a 
+  => 00:1f:5b:ce:bd:6a 
  > frame.ether_type
- => 2048 
- > frame.payload.unpack('H*')
- => ["45200034d5ae400035061ad .... 08195fba"]
-
+  => 2048 
+ > frame.payload.unpack('H*')[0]
+  =>  "45200034d5ae400035061ad .... 08195fba"
 
 == Receiving
 
-require 'ethernet'
-s = Ethernet::Socket.new "en1"
-s.open
-s.recv
-
+ require 'ethernet'
+ s = Ethernet::Socket.new "en1"
+ s.open
+ s.recv
 
 == Sending
 
-request = Arp.new_request :hw_src=> '00:50:56:c0:00:01', 
-                  :proto_src=> '192.168.1.10', 
-                  :proto_tgt=> '192.168.1.13'
 
-s.send request
+ request = Arp.new_request :hw_src=> '00:50:56:c0:00:01', 
+                           :proto_src=> '192.168.1.10', 
+                           :proto_tgt=> '192.168.1.13'
+
+ # send method checks if the arg passed 'respond_to? :encode'
+ # and sends its encoded representation when it does.
+ s.send request
 
 = Installation
 
