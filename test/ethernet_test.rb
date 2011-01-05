@@ -1,5 +1,4 @@
 require "test/unit"
-
 require "ethernet"
 
 class TestEthernetIeAddress < Test::Unit::TestCase
@@ -23,6 +22,7 @@ class TestEthernetIeAddress < Test::Unit::TestCase
     assert_equal Ethernet::Address, Ethernet::Address.new(['010203040506'].pack('H*')).class
     assert_equal '010203040506', Ethernet::Address.new(['010203040506'].pack('H*')).to_shex
   end
+  #--
   # def test_to_s_oui
   #   assert_equal 'Apple_d8:93:a4',   Ethernet::Address.new('00:1f:f3:d8:93:a4').to_s_oui
   #   assert_equal 'Dell_01:3e:3d',    Ethernet::Address.new('00:21:9b:01:3e:3d').to_s_oui
@@ -30,6 +30,7 @@ class TestEthernetIeAddress < Test::Unit::TestCase
   #   assert_equal 'Intel_40:b8:8f',   Ethernet::Address.new('0:2:b3:40:b8:8f').to_s_oui
   #   assert_equal 'Cisco_fd:4f:6c',   Ethernet::Address.new('00b0.64fd.4f6c').to_s_oui
   # end
+  #++
 end
 
 class TestEthernetType < Test::Unit::TestCase

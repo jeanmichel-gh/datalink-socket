@@ -1,3 +1,6 @@
+#
+# Copyright (c) 2011 Jean-Michel Esnault. Released under the same license as Ruby
+# 
 
 class Object
   def to_shex(*args)

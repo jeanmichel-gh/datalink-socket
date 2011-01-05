@@ -1,14 +1,28 @@
+#
+# Copyright (c) 2011 Jean-Michel Esnault. Released under the same license as Ruby
+# 
+
 require 'ruby-ext'
 require 'dl_socket'
 require 'rubygems'
+#--
 # require 'oui'
+#++
 
 module Ethernet
   class Socket < Datalink::Socket
-    def recv(*args)
-      eth_frame = super
-      eth_type = eth_frame.slice(12,2).unpack('n')[0]
-      [eth_frame, eth_type]
+    case `uname`.chomp.downcase
+    when 'darwin'
+      def recv(*args)
+        eth_frame = super
+        eth_type = eth_frame.slice(12,2).unpack('n')[0]
+        [eth_frame, eth_type]
+      end
+    when 'linux'
+      def recv(*args)
+        eth_frame, eth_type, _ = super
+        [eth_frame, eth_type]
+      end
     end
   end
   
@@ -66,6 +80,7 @@ module Ethernet
       end
     end
 
+    #--
     # def to_s_oui
     #   comp_id = Ethernet::OUI.company_id_from_arr(@mac[0..2])
     #   if comp_id == 'Unknown'
@@ -77,6 +92,7 @@ module Ethernet
     #     s.join('_')
     #   end
     # end
+    #++
 
     def encode
       @mac.pack('C*')

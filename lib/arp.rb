@@ -1,3 +1,6 @@
+#
+# Copyright (c) 2011 Jean-Michel Esnault. Released under the same license as Ruby
+# 
 require 'ethernet'
 require 'ipaddr'
 
@@ -34,12 +37,8 @@ class Arp
   end
 
   def parse(s)
-    # p s.unpack('H*')
-    # p s.size
     s.slice!(0,14) if s.size>32
     htype, ptype, hlen, plen, opcode = s.unpack('nnccn')
-    # p htype
-    # p ptype
     hw_src, proto_src, hw_tgt, proto_tgt = s[8..-1].unpack("a#{hlen}a#{plen}"*2)
     raise RuntimeError, "Unsupported Hardware Type" unless htype == 1 && ptype == 0x0800
     @hw_src = HwSrc.new(hw_src)
