@@ -1,4 +1,4 @@
-= A Datalink-Socket for OSX and Linux
+= A Datalink-Socket for OSX, FreeBSD,  and Linux
 
 To receive and send ethernet frames using ruby.
 
