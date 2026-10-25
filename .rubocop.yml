@@ -1,0 +1,37 @@
+AllCops:
+  TargetRubyVersion: 3.1
+  NewCops: enable
+  SuggestExtensions: false
+
+# This is a networking library: bit math, ioctl constants, and wire
+# formats make for naturally longer and denser methods than a web app.
+Metrics/MethodLength:
+  Max: 40
+Metrics/AbcSize:
+  Max: 40
+Metrics/ClassLength:
+  Max: 250
+Metrics/CyclomaticComplexity:
+  Max: 12
+Metrics/PerceivedComplexity:
+  Max: 12
+Metrics/ParameterLists:
+  Max: 8
+Metrics/BlockLength:
+  Exclude:
+    - "test/**/*"
+
+Style/Documentation:
+  Enabled: false
+
+# Hex ioctl/constant tables read better aligned.
+Layout/ExtraSpacing:
+  AllowForAlignment: true
+
+Lint/ConstantDefinitionInBlock:
+  Exclude:
+    - "test/**/*"
+
+Metrics/ModuleLength:
+  Exclude:
+    - "test/**/*"
