@@ -1,0 +1,47 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# arp-scan: sweep a subnet with ARP requests and print who answers.
+#
+# Example:
+#   sudo arp-scan -i eth0 -s 192.168.1.10 -m 00:11:22:33:44:55 192.168.1.0/24
+#
+# Needs root (or CAP_NET_RAW on Linux). This only probes hosts; it does
+# not change anything.
+
+require "optparse"
+require "ipaddr"
+require "datalink"
+require "datalink/arp/resolver"
+
+options = { timeout: 1.0 }
+parser = OptionParser.new do |o|
+  o.banner = "Usage: arp-scan -i IFACE -s SRC_IP -m SRC_MAC CIDR"
+  o.on("-i", "--interface IFACE", "network interface") { |v| options[:iface] = v }
+  o.on("-s", "--source-ip IP", "source IP for the probes") { |v| options[:src_ip] = v }
+  o.on("-m", "--source-mac MAC", "source MAC for the probes") { |v| options[:src_mac] = v }
+  o.on("-t", "--timeout SEC", Float, "per-host timeout (default 1.0)") { |v| options[:timeout] = v }
+  o.on("-h", "--help") { puts o; exit }
+end
+parser.parse!
+
+cidr = ARGV.shift
+abort parser.help unless cidr && options[:iface] && options[:src_ip] && options[:src_mac]
+
+range = IPAddr.new(cidr)
+src_mac = Datalink::MAC.new(options[:src_mac])
+
+Datalink::Socket.open(options[:iface]) do |sock|
+  resolver = Datalink::ARP::Resolver.new(sock, sender_mac: src_mac, sender_ip: options[:src_ip])
+  found = 0
+  range.to_range.each do |ip|
+    next if ip == range # skip network address itself for the common case
+
+    mac = resolver.resolve(ip, timeout: options[:timeout], retries: 1)
+    if mac
+      puts format("%-15s  %s", ip, mac)
+      found += 1
+    end
+  end
+  warn "#{found} host(s) responded"
+end

