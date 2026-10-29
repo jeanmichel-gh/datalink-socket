@@ -1,0 +1,10 @@
+.git
+.github
+test
+tmp
+coverage
+*.gem
+*.pcap
+RELEASE_NOTES*
+RELEASE_BODY*
+Gemfile.lock
