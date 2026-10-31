@@ -4,3 +4,12 @@
 *.pcap
 /tmp/
 /coverage/
+
+# Release notes live in the GitHub Release and CHANGELOG.md, never as a
+# committed file. This keeps scratch notes out of the repo.
+/RELEASE_NOTES*
+/RELEASE_BODY*
+
+# A library pins nothing: the CI matrix tests several Ruby versions, so
+# the lockfile is not committed.
+/Gemfile.lock

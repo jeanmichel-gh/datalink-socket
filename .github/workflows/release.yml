@@ -1,0 +1,102 @@
+name: Release
+
+# Fires when a version tag is pushed. The tag is the single trigger for a
+# release: it publishes the gem, pushes the Docker image to Docker Hub and
+# GHCR, and creates the GitHub Release.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write   # create the GitHub Release
+  packages: write   # push the image to GHCR
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - run: bundle exec rake test
+
+  gem:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Verify the tag matches the gem version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          gem_version="$(ruby -Ilib -e 'require "datalink/version"; print Datalink::VERSION')"
+          if [ "$tag" != "$gem_version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match gem version $gem_version"
+            exit 1
+          fi
+
+      - name: Build the gem
+        run: gem build datalink-socket.gemspec
+
+      - name: Publish to RubyGems
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+        run: gem push datalink-socket-*.gem
+
+      - name: Extract release notes from CHANGELOG
+        run: script/extract-changelog.sh "${GITHUB_REF_NAME#v}" > RELEASE_BODY.md
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" datalink-socket-*.gem \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file RELEASE_BODY.md
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Derive image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/datalink-socket
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - name: Build and push the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
