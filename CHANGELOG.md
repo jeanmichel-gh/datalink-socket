@@ -8,7 +8,11 @@ A full rewrite of the 2011 library into a modern, tested layer-2 toolkit.
 - `Datalink::MAC`: immutable MAC value object with parsing, equality,
   hashing, broadcast/multicast/local tests, and `MAC.random`.
 - `Datalink::Frame`: Ethernet II frame with encode/parse, 802.1Q VLAN
-  tag support, and padding.
+  tag support, and padding. Plus `Frame.ieee_802_3` to build a
+  length-encapsulated frame, and `Frame#sdu` to read the payload trimmed
+  to that length (dropping any NIC padding).
+- `Datalink::LLC`: IEEE 802.2 LLC header (U-format), for protocols that
+  run over 802.2 such as IS-IS, STP, and CDP.
 - `Datalink::Socket`: one facade over pluggable backends.
 - Backends: `linux` (AF_PACKET), `bpf` (macOS/BSD), plus `loopback` and
   `pcap_file` for privilege-free testing and offline work.
