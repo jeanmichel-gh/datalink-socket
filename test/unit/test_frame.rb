@@ -77,4 +77,28 @@ class TestFrame < Minitest::Test
     bytes = ["ffffffffffff1122334455668100"].pack("H*")
     assert_raises(Datalink::ParseError) { Frame.parse(bytes) }
   end
+
+  def test_ieee_802_3_builder_sets_length
+    f = Frame.ieee_802_3(dst: MAC.broadcast, src: "11:22:33:44:55:66", payload: "hello")
+    assert f.ieee_802_3?
+    assert_equal 5, f.ether_type
+  end
+
+  def test_sdu_trims_nic_padding
+    # An 802.3 frame declaring length 5, but received padded to 46 bytes.
+    f = Frame.ieee_802_3(dst: MAC.broadcast, src: "11:22:33:44:55:66", payload: "hello")
+    padded = Frame.parse(f.encode(pad: true))
+    assert_equal 46, padded.payload.bytesize
+    assert_equal "hello", padded.sdu
+  end
+
+  def test_sdu_is_full_payload_for_ethernet_v2
+    f = Frame.new(dst: MAC.zero, src: MAC.zero, ether_type: 0x0800, payload: "data")
+    assert_equal "data", f.sdu
+  end
+
+  def test_sdu_roundtrip_unpadded
+    f = Frame.ieee_802_3(dst: MAC.broadcast, src: "11:22:33:44:55:66", payload: "abc")
+    assert_equal "abc", Frame.parse(f.encode).sdu
+  end
 end

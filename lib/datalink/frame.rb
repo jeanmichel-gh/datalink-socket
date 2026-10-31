@@ -80,6 +80,19 @@ module Datalink
       out
     end
 
+    # Build an IEEE 802.3 frame: the type field carries the length of the
+    # payload (the LLC service data unit), not an EtherType. Use this for
+    # protocols that run over 802.2/LLC, such as IS-IS, STP, or CDP.
+    def self.ieee_802_3(dst:, src:, payload:)
+      bytes =
+        if payload.respond_to?(:encode) && !payload.is_a?(String)
+          payload.encode
+        else
+          payload.b
+        end
+      new(dst: dst, src: src, ether_type: bytes.bytesize, payload: bytes)
+    end
+
     # Parse raw bytes into a Frame. Raises ParseError if too short.
     def self.parse(bytes)
       b = bytes.b
@@ -115,6 +128,20 @@ module Datalink
     # Ethernet II frame (type field >= 0x0600).
     def ethernet_v2?
       !ieee_802_3?
+    end
+
+    # The service data unit: the payload a protocol actually sent.
+    #
+    # For an 802.3 frame the type field is a length, and a NIC may have
+    # padded the frame up to its 60-byte minimum. This trims the payload
+    # back to that declared length. For an Ethernet II frame, or if the
+    # length looks wrong, it returns the whole payload unchanged.
+    def sdu
+      if ieee_802_3? && @ether_type <= @payload.bytesize
+        @payload[0, @ether_type]
+      else
+        @payload
+      end
     end
 
     def ether_type_name
