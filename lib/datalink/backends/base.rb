@@ -4,9 +4,19 @@ require "datalink/error"
 
 module Datalink
   module Backends
-    # A frame as it came off a backend: the raw bytes plus the time it
-    # was captured. Returned by Backend#recv.
-    CapturedFrame = Struct.new(:bytes, :timestamp) do
+    # A frame as it came off a backend: the raw bytes, the time it was
+    # captured, and its packet type. Returned by Backend#recv.
+    #
+    # packet_type is what the kernel says about the frame: :host,
+    # :broadcast, :multicast, :otherhost or :outgoing (linux/if_packet.h,
+    # PACKET_HOST to PACKET_OUTGOING). :outgoing is a frame this host
+    # sent out of the interface, through another socket or its own IP
+    # stack. A backend that cannot tell leaves it nil.
+    CapturedFrame = Struct.new(:bytes, :timestamp, :packet_type) do
+      def outgoing?
+        packet_type == :outgoing
+      end
+
       # Parse the bytes into a Datalink::Frame (lazy; requires frame.rb).
       def frame
         require "datalink/frame"

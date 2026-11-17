@@ -244,6 +244,19 @@ sudo ruby -Ilib exe/arp-spoof -i eth0 -s 192.168.1.99 -m 00:11:22:33:44:55 \
 Windows is not supported out of the box. Raw layer 2 there needs Npcap
 and a separate backend.
 
+On Linux, a socket also sees the frames this host sends out of the
+interface, through another socket or its own IP stack. Each captured
+frame says which it is, and a program that forwards frames can drop
+them:
+
+```ruby
+sock = Datalink::Socket.open("eth0", ignore_outgoing: true)
+sock.recv.packet_type   #=> :host, :broadcast, :multicast or :otherhost
+```
+
+Without the option, those frames come with `packet_type == :outgoing`.
+A socket never sees the frames it sent itself.
+
 ## Tests
 
 ```sh

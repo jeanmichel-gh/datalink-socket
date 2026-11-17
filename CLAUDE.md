@@ -114,7 +114,8 @@ reshapes one breaks it, so change them only on purpose and in step.
   the SAP constants (`SAP_ISIS`).
 - `Datalink::Socket.new(name, backend: :loopback, wire:, recv_timeout:)`,
   then `open`, `send`, `recv` (a captured frame whose `frame` parses it),
-  and `each_frame`.
+  and `each_frame`. A captured frame also has `packet_type` and
+  `outgoing?`, added for vtep4r; isis4r does not read them.
 - `Datalink::Backends::Loopback::Wire`, the shared medium two sockets pair
   on to simulate a segment.
 

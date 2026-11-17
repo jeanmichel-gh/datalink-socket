@@ -13,6 +13,14 @@ module Datalink
     #
     # Modernized from the original: no shelling out, timeouts via
     # IO.select instead of sleep/retry, and clear errors on EPERM.
+    #
+    # Each captured frame carries its packet type, from the sockaddr_ll
+    # recvfrom answers. With ETH_P_ALL the socket also sees frames this
+    # host sends out of the interface, through another socket or its own
+    # IP stack, as :outgoing. Its own sends it never sees. Measured on
+    # Linux 7.0 over a veth pair. ignore_outgoing: true drops the
+    # outgoing ones, which a program that forwards frames needs, or it
+    # forwards the host's own traffic.
     class Linux < Base
       PF_PACKET    = 17
       ETH_P_ALL    = 0x0003
@@ -21,15 +29,41 @@ module Datalink
       SIOCSIFFLAGS = 0x8914
       IFF_PROMISC  = 0x0100
       IFNAMSIZ     = 16
+      # linux/socket.h and linux/if_packet.h. PACKET_IGNORE_OUTGOING is
+      # in kernels from 4.20.
+      SOL_PACKET             = 263
+      PACKET_IGNORE_OUTGOING = 23
+      # sockaddr_ll: family u16, protocol be16, ifindex s32, hatype u16,
+      # then pkttype u8 at offset 10.
+      PKTTYPE_OFFSET = 10
+      PACKET_TYPES = { 0 => :host, 1 => :broadcast, 2 => :multicast,
+                       3 => :otherhost, 4 => :outgoing }.freeze
 
       def self.available?
         RUBY_PLATFORM.include?("linux")
       end
 
-      def initialize(interface, recv_timeout: nil, protocol: ETH_P_ALL, promiscuous: false)
+      # The packet type in a sockaddr_ll, as a Symbol from PACKET_TYPES,
+      # or the number when the kernel sends one not listed there. nil
+      # when the address is too short to hold one.
+      def self.packet_type(sockaddr)
+        return nil if sockaddr.nil? || sockaddr.bytesize <= PKTTYPE_OFFSET
+
+        n = sockaddr.getbyte(PKTTYPE_OFFSET)
+        PACKET_TYPES.fetch(n, n)
+      end
+
+      def initialize(interface, recv_timeout: nil, protocol: ETH_P_ALL, promiscuous: false,
+                     ignore_outgoing: false)
         super(interface, recv_timeout: recv_timeout)
         @protocol = protocol
         @promiscuous = promiscuous
+        @ignore_outgoing = ignore_outgoing
+        @filter_outgoing = false
+      end
+
+      def ignore_outgoing?
+        @ignore_outgoing
       end
 
       def open
@@ -38,6 +72,7 @@ module Datalink
         @socket = ::Socket.new(PF_PACKET, ::Socket::SOCK_RAW, proto_be)
         bind_to_interface
         enable_promiscuous if @promiscuous
+        drop_outgoing if @ignore_outgoing
         @open = true
         self
       rescue Errno::EPERM, Errno::EACCES => e
@@ -46,12 +81,19 @@ module Datalink
 
       def recv
         ensure_open
-        if @recv_timeout
-          ready = IO.select([@socket], nil, nil, @recv_timeout)
-          raise TimeoutError, "no frame within #{@recv_timeout}s" if ready.nil?
+        deadline = @recv_timeout && (monotonic + @recv_timeout)
+        loop do
+          if deadline
+            left = deadline - monotonic
+            ready = left.positive? && IO.select([@socket], nil, nil, left)
+            raise TimeoutError, "no frame within #{@recv_timeout}s" unless ready
+          end
+          data, addr = @socket.recvfrom(65_535)
+          type = self.class.packet_type(addr.respond_to?(:to_sockaddr) ? addr.to_sockaddr : addr)
+          next if @filter_outgoing && type == :outgoing
+
+          return CapturedFrame.new(data, Time.now, type)
         end
-        data, = @socket.recvfrom(65_535)
-        CapturedFrame.new(data, Time.now)
       end
 
       def close
@@ -98,6 +140,27 @@ module Datalink
 
       def ensure_open
         raise Error, "backend not open" unless @open
+      end
+
+      # Ask the kernel to drop outgoing frames. A kernel without the
+      # option refuses it, and recv then drops them itself.
+      def drop_outgoing
+        @socket.setsockopt(SOL_PACKET, PACKET_IGNORE_OUTGOING, [1].pack("i"))
+        @filter_outgoing = false
+      rescue SystemCallError
+        @filter_outgoing = true
+      end
+
+      def monotonic
+        Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      end
+
+      # Unit tests only: put a stand-in where the raw socket goes, so recv
+      # runs with no privileges.
+      def attach_for_test(socket, filter_outgoing:)
+        @socket = socket
+        @filter_outgoing = filter_outgoing
+        @open = true
       end
     end
   end
