@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `CapturedFrame#packet_type` and `#outgoing?`. The Linux backend fills
+  it from the kernel's sockaddr_ll: `:host`, `:broadcast`, `:multicast`,
+  `:otherhost` or `:outgoing`. Other backends leave it nil.
+  `CapturedFrame.new(bytes, timestamp)` still works.
+- The Linux backend's `ignore_outgoing: true` option. It drops the
+  frames this host sends out of the interface, through another socket or
+  its own IP stack, with `PACKET_IGNORE_OUTGOING` (Linux 4.20 and
+  later). On an older kernel, `recv` drops them itself. Without it, a
+  program that forwards frames forwards the host's own traffic.
+
 ## 1.0.0 (2026-10-25)
 
 A full rewrite of the 2011 library into a modern, tested layer-2 toolkit.
