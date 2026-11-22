@@ -128,3 +128,39 @@ reshapes one breaks it, so change them only on purpose and in step.
 - Design spec first: non-trivial work gets a design in
   `docs/design/<topic>.md`, approved before any code.
 - Write in plain, short sentences.
+
+## Sharing ospflab with other sessions
+
+Many sessions work on ospflab at once, each on its own topic. These
+rules keep one from undoing another's work: rebuilding an image under a
+lab, stopping a gate halfway, editing a lab's files. The reasons are in
+routescope's `docs/design/shared-vm.md` (approved 2026-11-22).
+
+1. **An image tagged `:latest` is master.** `~/routescope/tools/vm-update.sh`
+   builds it from master; an image vm-update does not build (`vtep4r`
+   today) is built from its checkout in `~` on master. To run a branch or
+   a commit, build it from a worktree under its own tag, `NAME:SHORTSHA`,
+   and remove that tag when its runs are done. Never build `NAME:latest`
+   from a branch.
+2. **The checkouts in `~` stay on main or master.** vm-update pulls them.
+   Branch work happens in worktrees, never in `~/REPO`.
+3. **Do not edit `~/labs`.** To run a lab on another image or with other
+   files, `routescope-labs fork LAB NAME` copies it to `~/labs/local/NAME`
+   under a lab name of its own, so its containers do not collide with the
+   original's. Edit the copy, and `routescope-labs retire NAME` when done.
+4. **Take the VM's lock around what disturbs others**,
+   `~/routescope/tools/vm-lock` (routescope `docs/vm-lock.md`):
+   - `exclusive` to restart Docker or routescope, or to stop or redeploy
+     a lab you did not start. vm-update takes it itself.
+   - `shared` for a gate or a scenario run.
+
+   Run it as the VM's user, with `sudo` inside the command. It waits up
+   to 15 minutes; when it gives up (exit 75), ask the user before trying
+   again.
+5. **A gate's containers have the names of routescope's copy of its
+   lab**, `clab-LAB-NODE`. Until the gates run under a name of their own,
+   stop routescope's copy through routescope before a gate, and start it
+   again after, both under the lock.
+6. **A lab run outside routescope** (one only on a branch, deployed by
+   hand) is named in `~/vm-changes.md`, with the folder it came from.
+7. **Each entry in `~/vm-changes.md` names the session** that made it.
